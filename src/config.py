@@ -13,7 +13,7 @@ class Settings(BaseSettings):
 
     # LLM (Groq)
     groq_api_key: str = ""
-    groq_model: str = "llama3-70b-8192"
+    groq_model: str = "llama-3.3-70b-versatile"
     max_tokens: int = 512
     temperature: float = 0.2
 
