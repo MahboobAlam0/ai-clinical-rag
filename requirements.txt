@@ -2,8 +2,9 @@
 # Install: pip install -r requirements.txt
 
 # Core ML / embeddings
-torch>=2.1.0
-sentence-transformers>=2.7.0
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.2.2+cpu
+sentence-transformers>=2.7.0,<3.4.0
 
 # Vector store
 qdrant-client>=1.9.0
@@ -28,12 +29,13 @@ tenacity>=8.3.0
 # UI
 streamlit>=1.35.0
 
-# Training (embedding fine-tune)
-accelerate>=0.30.0
-
 # Utils
 tqdm>=4.66.0
 python-dotenv>=1.0.0
+setuptools>=69.0.0
+
+# Training (embedding fine-tune)
+accelerate>=0.30.0
 
 # Testing
 pytest>=8.2.0

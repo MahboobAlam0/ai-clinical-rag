@@ -8,6 +8,7 @@ sdk_version: "1.35.0"
 app_file: app/streamlit_app.py
 pinned: false
 license: mit
+python_version: "3.11"
 ---
 
 # Clinical RAG
