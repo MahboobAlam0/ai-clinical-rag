@@ -106,6 +106,53 @@ def upsert_to_qdrant(
     logger.info("Upsert complete", extra={"vectors": total, "collection": collection})
 
 
+def ensure_data() -> None:
+    """Download PubMedQA from HuggingFace Datasets if the JSONL file is missing.
+    Called automatically on HF Spaces cold start."""
+    if DATA_PATH.exists():
+        return
+    logger.info("Downloading PubMedQA from HuggingFace Datasets…")
+    from datasets import load_dataset
+    ds = load_dataset("qiaojin/PubMedQA", "pqa_labeled", split="train")
+    DATA_PATH.parent.mkdir(parents=True, exist_ok=True)
+    saved = 0
+    with open(DATA_PATH, "w") as f:
+        for row in ds:
+            contexts_list = row.get("context", {}).get("contexts", [])
+            labels        = row.get("context", {}).get("labels", [])
+            for ctx, label in zip(contexts_list, labels):
+                if not ctx.strip():
+                    continue
+                f.write(json.dumps({
+                    "pubid":    row["pubid"],
+                    "question": row["question"],
+                    "context":  ctx.strip(),
+                    "label":    label,
+                    "answer":   row.get("long_answer", ""),
+                    "decision": row.get("final_decision", ""),
+                }) + "\n")
+                saved += 1
+    logger.info("PubMedQA downloaded", extra={"records": saved})
+
+
+def build_index_if_needed() -> None:
+    """Build the Qdrant index if the collection doesn't exist yet.
+    Safe to call on every startup — no-op when index is already present."""
+    settings = get_settings()
+    from src.retriever import _build_qdrant_client
+    client = _build_qdrant_client(settings)
+    existing = [c.name for c in client.get_collections().collections]
+    if settings.qdrant_collection in existing:
+        logger.info("Qdrant collection already exists — skipping ingest")
+        return
+    logger.info("Building Qdrant index from scratch…")
+    ensure_data()
+    chunks, metadata = load_documents(DATA_PATH, settings.chunk_size, settings.chunk_overlap)
+    model = SentenceTransformer(settings.embedding_model)
+    embeddings = embed(chunks, model)
+    upsert_to_qdrant(client, settings.qdrant_collection, embeddings, metadata)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Build Qdrant index from PubMedQA JSONL.")
     parser.add_argument(

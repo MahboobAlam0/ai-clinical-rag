@@ -286,9 +286,25 @@ section[data-testid="stSidebar"] .block-container { padding-top: 1.5rem; }
 
 
 # ── Pipeline ──────────────────────────────────────────────────────────────────
-@st.cache_resource(show_spinner="Initialising clinical knowledge base…")
+@st.cache_resource(show_spinner=False)
 def _load_pipeline() -> ClinicalRAGPipeline:
-    return ClinicalRAGPipeline()
+    from src.ingest import build_index_if_needed, ensure_data
+    from src.config import get_settings
+
+    with st.status("🚀 Initialising knowledge base…", expanded=True) as status:
+        st.write("📥 Checking PubMed dataset…")
+        ensure_data()
+
+        st.write("🔍 Building vector index (first run ~30 s)…")
+        build_index_if_needed()
+
+        st.write("🤖 Loading embedding model…")
+        pipeline = ClinicalRAGPipeline()
+        pipeline.retriever._load()
+
+        status.update(label="✅ Knowledge base ready — 5,355 PubMed abstracts indexed",
+                      state="complete", expanded=False)
+    return pipeline
 
 pipeline = _load_pipeline()
 

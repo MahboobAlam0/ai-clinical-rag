@@ -44,7 +44,11 @@ class RetrievalResult:
 
 
 def _build_qdrant_client(settings) -> QdrantClient:
-    if settings.qdrant_host:
+    mode = settings.qdrant_mode.lower()
+    if mode == "memory":
+        logger.info("Using in-memory Qdrant (ephemeral)")
+        return QdrantClient(":memory:")
+    if mode == "remote" or settings.qdrant_host:
         logger.info("Connecting to Qdrant server", extra={"host": settings.qdrant_host, "port": settings.qdrant_port})
         return QdrantClient(host=settings.qdrant_host, port=settings.qdrant_port)
     logger.info("Using local Qdrant storage", extra={"path": settings.qdrant_path})

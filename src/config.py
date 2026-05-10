@@ -21,10 +21,11 @@ class Settings(BaseSettings):
     embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2"
 
     # Qdrant vector store
-    # Leave qdrant_host empty to use local file-based persistence (no Docker needed).
+    # qdrant_mode: "memory" (HF Spaces / CI), "local" (dev), "remote" (Docker/prod)
+    qdrant_mode: str = "local"
     qdrant_host: str = ""
     qdrant_port: int = 6333
-    qdrant_path: str = "qdrant_storage"   # used when qdrant_host is empty
+    qdrant_path: str = "qdrant_storage"
     qdrant_collection: str = "pubmed"
 
     # Retrieval

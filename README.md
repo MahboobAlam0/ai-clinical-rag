@@ -1,3 +1,15 @@
+---
+title: Clinical RAG
+emoji: 🧬
+colorFrom: blue
+colorTo: indigo
+sdk: streamlit
+sdk_version: "1.35.0"
+app_file: app/streamlit_app.py
+pinned: false
+license: mit
+---
+
 # Clinical RAG
 
 > Retrieval-Augmented Generation over PubMed literature — with domain-adapted embeddings, uncertainty quantification, and a production-grade API.
