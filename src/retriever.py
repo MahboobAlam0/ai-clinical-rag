@@ -43,11 +43,19 @@ class RetrievalResult:
     confidence_note: str
 
 
+# Singleton for in-memory mode — all callers in the same process share one
+# instance so the collection built by ingest is visible to the retriever.
+_memory_client: QdrantClient | None = None
+
+
 def _build_qdrant_client(settings) -> QdrantClient:
+    global _memory_client
     mode = settings.qdrant_mode.lower()
     if mode == "memory":
-        logger.info("Using in-memory Qdrant (ephemeral)")
-        return QdrantClient(":memory:")
+        if _memory_client is None:
+            logger.info("Creating shared in-memory Qdrant client")
+            _memory_client = QdrantClient(":memory:")
+        return _memory_client
     if mode == "remote" or settings.qdrant_host:
         logger.info("Connecting to Qdrant server", extra={"host": settings.qdrant_host, "port": settings.qdrant_port})
         return QdrantClient(host=settings.qdrant_host, port=settings.qdrant_port)
