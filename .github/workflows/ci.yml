@@ -31,7 +31,7 @@ jobs:
         env:
           GROQ_API_KEY: "test_key_for_ci"
         run: |
-          pytest tests/ -v --cov=src --cov-report=term-missing --cov-fail-under=80
+          pytest test/ -v --cov=src --cov-report=term-missing --cov-fail-under=80
 
   docker-build:
     runs-on: ubuntu-latest

@@ -26,9 +26,9 @@ python_version: "3.11"
 
 ## What this is
 
-A clinical question-answering system that retrieves evidence from 5,355 PubMed abstracts and generates grounded answers using Llama-3.3-70B. Every answer includes **cited sources**, a **confidence score** derived from retrieval signal strength, and a **disclaimer** — the model is explicitly prevented from answering outside the retrieved context.
+A clinical question-answering system that retrieves evidence from about 1,000 PubMed abstracts (the expert-labelled PubMedQA `pqa_labeled` set, split into 5,355 chunks) and generates grounded answers using Llama-3.3-70B. Every answer includes **cited sources**, a **confidence score** derived from retrieval signal strength, and a **disclaimer**. The system prompt tells the model to answer only from the retrieved context and to say when that context isn't enough; this is an instruction, not a hard block (the LLM is still called at LOW confidence).
 
-The embedding model was fine-tuned on PubMedQA using MultipleNegativesRankingLoss, improving retrieval nDCG@10 from **0.806 → 0.926** on a held-out test set.
+The embedding model was fine-tuned on PubMedQA using MultipleNegativesRankingLoss, improving retrieval nDCG@10 from **0.806 → 0.926** in my first evaluation. That evaluation turned out not to be held out (see [Results](#fine-tuning-results) below), so the numbers are in-sample and need re-running with the fixed script.
 
 ---
 
@@ -76,7 +76,9 @@ User Query
 
 The embedding model was fine-tuned for 10 epochs on 4,500 PubMedQA (question → context) positive pairs using **MultipleNegativesRankingLoss**. Best checkpoint saved at epoch 9 via `InformationRetrievalEvaluator`.
 
-Evaluated on a **held-out test split** (n=300, seed=99 — separate from the training seed=42):
+> **Correction: these numbers are in-sample.** They were produced by an earlier version of `eval/compare_models.py` that reshuffled the same pair pool the model trains on (seed 99 instead of the training seed 42). A different shuffle of the same pool is not a held-out set: about 90% of those 300 pairs were training pairs. The script now evaluates on the training script's own validation split (pairs never trained on), and these results need re-running with it.
+
+Original (in-sample) evaluation, n=300:
 
 | Metric | Base model | Fine-tuned | Improvement |
 |--------|:----------:|:----------:|:-----------:|
@@ -90,7 +92,7 @@ Evaluated on a **held-out test split** (n=300, seed=99 — separate from the tra
 
 > Reproduce: `python -m eval.compare_models`
 
-The gains are consistent across every metric and generalise to unseen data, confirming the model learned domain-relevant similarity rather than memorising training pairs.
+Because most of these pairs were seen in training, the table shows the model fits its training pairs; it does not show generalisation to unseen questions. Re-run `python -m eval.compare_models` (with the same `--max-pairs` used for training) for held-out numbers.
 
 ---
 
@@ -117,7 +119,7 @@ The gains are consistent across every metric and generalise to unseen data, conf
 
 **PubMedQA** (`qiaojin/PubMedQA` on HuggingFace)
 - 1,000 expert-labelled + 61,000 unlabelled QA pairs from PubMed abstracts
-- 5,355 overlapping character-level chunks (400 chars, 80-char overlap)
+- This project indexes the expert-labelled `pqa_labeled` subset: about 1,000 abstracts, split into 5,355 overlapping character-level chunks (400 chars, 80-char overlap)
 - License: MIT — no API key required
 - Paper: [Jin et al., 2019 — PubMedQA: A Dataset for Biomedical Research QA](https://arxiv.org/abs/1909.06146)
 
@@ -186,7 +188,7 @@ python -m src.train_embeddings --epochs 10 --batch-size 32
 # Rebuild index with the fine-tuned model
 python -m src.ingest --model models/clinical-embeddings
 
-# Compare base vs fine-tuned on a held-out test set
+# Compare base vs fine-tuned on the validation split (pairs never used for training)
 python -m eval.compare_models
 ```
 
@@ -239,6 +241,8 @@ curl -X POST http://localhost:8000/query \
   "request_id": "3f2c1a7e-84b1-4f9a-a3d2-001122334455"
 }
 ```
+
+The `latency_ms` above (874.3 ms) is from this one example response; latency hasn't been benchmarked.
 
 ### `POST /query/stream`
 
@@ -303,7 +307,7 @@ clinical-rag/
 ├── app/
 │   └── streamlit_app.py     # Interactive UI with query history
 ├── eval/
-│   └── compare_models.py    # Base vs fine-tuned comparison on held-out test set
+│   └── compare_models.py    # Base vs fine-tuned comparison on the training validation split
 ├── data/
 │   ├── fetch_dataset.py     # Download PubMedQA from HuggingFace
 │   └── pubmed_contexts.jsonl
@@ -315,7 +319,7 @@ clinical-rag/
 ├── .env.example
 ├── Dockerfile
 ├── docker-compose.yml       # API + Streamlit + Qdrant
-└── CI.yml                   # GitHub Actions: test + docker build
+└── .github/workflows/ci.yml # GitHub Actions: test + docker build
 ```
 
 ---
@@ -328,7 +332,7 @@ pytest test/ -v --cov=src --cov-report=term-missing
 
 - **Unit tests** — chunking logic, retrieval confidence classification, RAG pipeline (LLM mocked)
 - **Integration tests** — all API endpoints via `httpx` TestClient (Qdrant + LLM mocked)
-- **Coverage gate** — 80% enforced in CI
+- **Coverage gate** — the CI workflow runs `pytest --cov-fail-under=80`, so a push fails below 80% coverage (the workflow was previously misplaced and never ran, so the current coverage hasn't been confirmed on CI yet)
 
 ---
 

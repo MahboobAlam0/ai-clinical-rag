@@ -2,7 +2,19 @@
 eval/compare_models.py
 ----------------------
 Compare retrieval quality between the base embedding model and the
-fine-tuned clinical model on a held-out PubMedQA test split.
+fine-tuned clinical model on PubMedQA pairs the fine-tuned model never
+trained on.
+
+The evaluation set is the validation split produced by
+src/train_embeddings.py (same file, same seed=42 shuffle, same 10% split),
+so none of its pairs were used for training. Note that train_embeddings.py
+also uses this split to pick the best epoch, so scores are slightly
+optimistic; for a fully untouched test set, carve it out before training.
+Pass the same --max-pairs value you trained with, or the split won't match.
+
+Earlier versions of this script reshuffled the whole pair pool with a
+different seed (99). That did NOT give a held-out set: about 90% of those
+pairs were training pairs, so results reported from it were in-sample.
 
 Prints a table like:
 
@@ -14,14 +26,11 @@ Prints a table like:
 
 Run:
     python -m eval.compare_models
-    python -m eval.compare_models --test-size 500 --seed 7
+    python -m eval.compare_models --max-pairs 4000   # if you trained with --max-pairs 4000
 """
 
 import argparse
-import json
 import os
-import random
-from pathlib import Path
 
 os.environ.setdefault("WANDB_DISABLED", "true")
 
@@ -31,29 +40,25 @@ try:
 except ImportError:
     from sentence_transformers.evaluation import InformationRetrievalEvaluator  # type: ignore
 
-from sentence_transformers import InputExample, SentenceTransformer
+from sentence_transformers import SentenceTransformer
 
-DATA_PATH = Path("data/pubmed_contexts.jsonl")
+from src.train_embeddings import DATA_PATH, load_training_pairs
+
 BASE_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 FINETUNED_MODEL = "models/clinical-embeddings"
 
 
 # ── Data ──────────────────────────────────────────────────────────────────────
 
-def load_test_pairs(path: Path, n: int, seed: int) -> list[tuple[str, str]]:
-    """Load a held-out test split (different seed from training seed=42)."""
-    random.seed(seed)
-    pairs: list[tuple[str, str]] = []
-    with open(path) as f:
-        for line in f:
-            doc = json.loads(line)
-            if doc.get("decision", "").lower() not in ("yes", "no"):
-                continue
-            q, c = doc["question"].strip(), doc["context"].strip()
-            if q and c:
-                pairs.append((q, c))
-    random.shuffle(pairs)
-    return pairs[:n]
+def load_test_pairs(max_pairs: int | None, limit: int | None) -> list[tuple[str, str]]:
+    """Return the training script's validation pairs, which are never trained on.
+
+    Reuses load_training_pairs() with its defaults (seed=42, val_ratio=0.1)
+    so the split is identical to the one used in training.
+    """
+    _, val_examples = load_training_pairs(DATA_PATH, max_pairs=max_pairs)
+    pairs = [(ex.texts[0], ex.texts[1]) for ex in val_examples]
+    return pairs[:limit] if limit else pairs
 
 
 def build_evaluator(pairs: list[tuple[str, str]], name: str) -> InformationRetrievalEvaluator:
@@ -144,22 +149,24 @@ def print_report(base: dict, ft: dict) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Compare base vs fine-tuned embedding model on a held-out test split."
+        description="Compare base vs fine-tuned embedding model on the training "
+                    "script's validation split (pairs never used for training)."
     )
     parser.add_argument("--base-model",  default=BASE_MODEL)
     parser.add_argument("--ft-model",    default=FINETUNED_MODEL)
-    parser.add_argument("--test-size",   type=int, default=300)
-    parser.add_argument("--seed",        type=int, default=99,
-                        help="Use a seed different from 42 (training) to avoid overlap")
+    parser.add_argument("--max-pairs",   type=int, default=None,
+                        help="Same --max-pairs used for training, so the split matches (default: all)")
+    parser.add_argument("--test-size",   type=int, default=None,
+                        help="Optionally evaluate only the first N validation pairs (default: all)")
     parser.add_argument("--debug",       action="store_true",
                         help="Print raw result keys returned by the evaluator")
     args = parser.parse_args()
 
-    print(f"\nLoading {args.test_size} held-out test pairs (seed={args.seed})…")
-    pairs = load_test_pairs(DATA_PATH, args.test_size, args.seed)
+    pairs = load_test_pairs(args.max_pairs, args.test_size)
     if not pairs:
-        print("ERROR: No pairs loaded. Check data/pubmed_contexts.jsonl exists.")
+        print(f"ERROR: No pairs loaded. Check {DATA_PATH} exists.")
         return
+    print(f"\nEvaluating on {len(pairs)} validation pairs (never used for training)…")
 
     evaluator = build_evaluator(pairs, name="test")
 
