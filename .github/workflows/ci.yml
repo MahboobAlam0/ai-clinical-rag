@@ -30,8 +30,14 @@ jobs:
       - name: Run tests with coverage
         env:
           GROQ_API_KEY: "test_key_for_ci"
+        # On failure, surface the failing tests and error lines as annotations,
+        # which are visible on the run page without opening the raw log.
         run: |
-          pytest test/ -v --cov=src --cov-report=term-missing --cov-fail-under=80
+          set -o pipefail
+          pytest test/ -v -rfE --cov=src --cov-report=term-missing --cov-fail-under=80 2>&1 | tee pytest.log || {
+            grep -E "^(FAILED|ERROR)|^E   |Required test coverage|Interrupted|ImportError|ModuleNotFoundError" pytest.log | head -40 | sed 's/^/::error::/'
+            exit 1
+          }
 
   docker-build:
     runs-on: ubuntu-latest
