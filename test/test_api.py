@@ -2,8 +2,8 @@
 test/test_api.py
 ----------------
 Integration tests for the FastAPI service using httpx TestClient.
-All heavy dependencies (FAISS, LLM) are mocked so tests run in CI
-without GPU or a real Groq key.
+All heavy dependencies (Qdrant, embedding model, LLM) are mocked so tests
+run in CI without a vector store, GPU or a real Groq key.
 """
 
 import numpy as np
@@ -19,7 +19,8 @@ from src.rag_pipeline import RAGResponse
 def _make_mock_pipeline() -> MagicMock:
     """Return a pipeline mock that produces a deterministic RAGResponse."""
     mock = MagicMock()
-    mock.retriever._index.ntotal = 5000
+    # /health reads the vector count from the Qdrant client
+    mock.retriever._client.count.return_value.count = 5000
     mock.answer.return_value = RAGResponse(
         query="test question",
         answer="Mocked clinical answer.",
@@ -47,12 +48,16 @@ def client():
 
     mock_pipeline = _make_mock_pipeline()
 
-    # Override both the DI function and the cached singleton
+    # Override both the DI function and the cached singleton. The app's
+    # lifespan calls _build_pipeline() directly at startup, so the pipeline
+    # class itself is patched too; otherwise startup would open a real
+    # Qdrant store.
     app.dependency_overrides[get_pipeline] = lambda: mock_pipeline
     _build_pipeline.cache_clear()
 
-    with TestClient(app, raise_server_exceptions=True) as c:
-        yield c
+    with patch("api.main.ClinicalRAGPipeline", return_value=mock_pipeline):
+        with TestClient(app, raise_server_exceptions=True) as c:
+            yield c
 
     app.dependency_overrides.clear()
     _build_pipeline.cache_clear()

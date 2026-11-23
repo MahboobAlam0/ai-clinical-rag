@@ -3,7 +3,7 @@
 
 # Core ML / embeddings
 --extra-index-url https://download.pytorch.org/whl/cpu
-torch==2.2.2+cpu
+torch==2.5.1+cpu   # 2.3+ is needed for NumPy 2 (pulled in by pyarrow)
 sentence-transformers>=2.7.0,<3.4.0
 
 # Vector store

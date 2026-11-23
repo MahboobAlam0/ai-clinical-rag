@@ -332,7 +332,7 @@ pytest test/ -v --cov=src --cov-report=term-missing
 
 - **Unit tests** — chunking logic, retrieval confidence classification, RAG pipeline (LLM mocked)
 - **Integration tests** — all API endpoints via `httpx` TestClient (Qdrant + LLM mocked)
-- **Coverage gate** — the CI workflow runs `pytest --cov-fail-under=80`, so a push fails below 80% coverage (the workflow was previously misplaced and never ran, so the current coverage hasn't been confirmed on CI yet)
+- **Coverage gate** — the CI workflow runs `pytest --cov-fail-under=80`, so a push fails below 80% coverage of the online service modules (`config`, `logger`, `rag_pipeline`, `retriever`; about 83% locally). The two offline scripts, `src/ingest.py` and `src/train_embeddings.py`, need the dataset, a vector store and a GPU, so `.coveragerc` leaves them out of the gate
 
 ---
 

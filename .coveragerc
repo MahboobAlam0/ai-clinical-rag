@@ -1,0 +1,8 @@
+# Coverage for the CI gate. The two offline scripts below need the PubMedQA
+# data, a vector store and (for training) a GPU, so they are not exercised by
+# the unit tests and are left out of the 80% gate.
+[run]
+source = src
+omit =
+    src/train_embeddings.py
+    src/ingest.py

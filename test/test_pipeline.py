@@ -35,9 +35,14 @@ def _clear_settings_cache():
 
 class TestChunkText:
     def test_short_text_returns_single_chunk(self) -> None:
-        result = chunk_text("Short medical note.", size=400, overlap=80)
+        text = "Short medical note describing a single small clinical finding."
+        result = chunk_text(text, size=400, overlap=80)
         assert len(result) == 1
-        assert result[0] == "Short medical note."
+        assert result[0] == text
+
+    def test_fragments_of_50_chars_or_less_are_dropped(self) -> None:
+        # chunk_text deliberately discards tiny fragments (<= 50 characters)
+        assert chunk_text("Short medical note.", size=400, overlap=80) == []
 
     def test_long_text_produces_multiple_chunks(self) -> None:
         result = chunk_text("A" * 1000, size=400, overlap=80)
